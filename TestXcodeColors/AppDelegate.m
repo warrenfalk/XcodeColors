@@ -51,6 +51,8 @@
 		  XCODE_COLORS_RESET);
 	
 	NSLog(XCODE_COLORS_ESCAPE @"fg209,57,168;" @"You can supply your own RGB values!" XCODE_COLORS_RESET);
+    
+    NSLog(@"ERROR: this is an example of an auto-colored error");
 	
 	LogBlue(@"Blue text via macro");
 }

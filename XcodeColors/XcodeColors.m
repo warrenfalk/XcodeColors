@@ -42,12 +42,55 @@
 
 static IMP IMP_NSTextStorage_fixAttributesInRange = nil;
 
+@interface AutoColor : NSObject {
+    const char *_envvar;
+}
+@property (nonatomic) NSString *name;
+@property (nonatomic) NSRegularExpression *pattern;
+@property (nonatomic) NSDictionary *attributes;
+@end
 
+@implementation AutoColor
+- (id)initWithName:(NSString *)name attributes:(NSDictionary *)attributes {
+    if (self = [super init]) {
+        _envvar = strdup([[NSString stringWithFormat:@"XCODE_COLOR_%@_PATTERN", name] UTF8String]);
+        _name = name;
+        _pattern = nil;
+        _attributes = attributes;
+    }
+    return self;
+}
+- (NSRegularExpression *)pattern {
+    const char *patternString = getenv(_envvar);
+    if (!patternString)
+        return nil;
+    if (![_pattern.pattern isEqualToString:[NSString stringWithUTF8String:patternString]]) {
+        NSError *error;
+        NSLog(@"Creating pattern (%@): \"%s\"", _name, patternString);
+        _pattern = [[NSRegularExpression alloc] initWithPattern:[NSString stringWithUTF8String:patternString] options:NSRegularExpressionAnchorsMatchLines error:&error];
+    }
+    return _pattern;
+}
+@end
+
+static NSArray *_autoColors;
 
 @implementation XcodeColors_NSTextStorage
 
 void ApplyANSIColors(NSTextStorage *textStorage, NSRange textStorageRange, NSString *escapeSeq)
 {
+    NSArray *matches;
+    for (AutoColor *autoColor in _autoColors) {
+        NSRegularExpression *pattern = autoColor.pattern;
+        if (pattern) {
+            if ((matches = [pattern matchesInString:[textStorage string] options:0 range:textStorageRange]).count) {
+                for (NSTextCheckingResult *match in matches) {
+                    [textStorage addAttributes:autoColor.attributes range:match.range];
+                }
+            }
+        }
+    }
+    
 	NSRange range = [[textStorage string] rangeOfString:escapeSeq options:0 range:textStorageRange];
 	if (range.location == NSNotFound)
 	{
@@ -350,6 +393,32 @@ IMP ReplaceInstanceMethod(Class sourceClass, SEL sourceSel, Class destinationCla
 	    ReplaceInstanceMethod([NSTextStorage class], @selector(fixAttributesInRange:),
 							  [XcodeColors_NSTextStorage class], @selector(fixAttributesInRange:));
 	
+    if (!getenv("XCODE_COLOR_RED_PATTERN"))
+        setenv("XCODE_COLOR_RED_PATTERN", "^.*\\bERROR:.*$", 0);
+    if (!getenv("XCODE_COLOR_YELLOW_PATTERN"))
+        setenv("XCODE_COLOR_RED_PATTERN", "^.*\\bWARNING:.*$", 0);
+
+    _autoColors =
+    @[[[AutoColor alloc] initWithName:@"RED"
+                           attributes:@{ NSForegroundColorAttributeName: [NSColor redColor]}],
+      [[AutoColor alloc] initWithName:@"BLUE"
+                           attributes:@{ NSForegroundColorAttributeName: [NSColor blueColor]}],
+      [[AutoColor alloc] initWithName:@"GREEN"
+                           attributes:@{ NSForegroundColorAttributeName: [NSColor greenColor]}],
+      [[AutoColor alloc] initWithName:@"YELLOW"
+                           attributes:@{ NSForegroundColorAttributeName: [NSColor yellowColor]}],
+      [[AutoColor alloc] initWithName:@"MAGENTA"
+                           attributes:@{ NSForegroundColorAttributeName: [NSColor magentaColor]}],
+      [[AutoColor alloc] initWithName:@"CYAN"
+                           attributes:@{ NSForegroundColorAttributeName: [NSColor cyanColor]}],
+      [[AutoColor alloc] initWithName:@"GRAY"
+                           attributes:@{ NSForegroundColorAttributeName: [NSColor grayColor]}],
+      [[AutoColor alloc] initWithName:@"PURPLE"
+                           attributes:@{ NSForegroundColorAttributeName: [NSColor purpleColor]}],
+      [[AutoColor alloc] initWithName:@"ORANGE"
+                           attributes:@{ NSForegroundColorAttributeName: [NSColor orangeColor]}],
+      ];
+      
 	setenv(XCODE_COLORS, "YES", 0);
 }
 
